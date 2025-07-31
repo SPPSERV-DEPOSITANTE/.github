@@ -1,6 +1,5 @@
 name: 🌟 Feature Request
 description: Suggest a new feature or improvement.
-title: "-"
 labels: ["enhancement"]
 type: "feature"
 
