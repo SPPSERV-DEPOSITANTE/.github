@@ -1,0 +1,66 @@
+name: 🐞 Bug Report
+description: Reporte um problema encontrado no sistema.
+title: "[BUG] [SISTEMA] - "
+labels: ["bug"]
+type: "bug"
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por relatar um bug. Por favor, preencha os campos abaixo da forma mais completa possível.
+
+  - type: input
+    id: environment
+    attributes:
+      label: Ambiente
+      description: Em qual ambiente ocorreu o problema?
+      placeholder: "Ex: Produção, Homologação, Dev"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrição do Bug
+      description: Descreva claramente o que aconteceu.
+      placeholder: "Ex: Ao clicar no botão Salvar, nada acontece."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para Reproduzir
+      description: Passos detalhados para reproduzir o problema.
+      placeholder: |
+        1. Acesse a tela X
+        2. Clique no botão Y
+        3. Veja o erro
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento Esperado
+      description: O que você esperava que acontecesse?
+      placeholder: "Ex: Esperava que o botão salvasse os dados."
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Navegador / Dispositivo
+      description: Caso relevante, informe navegador ou dispositivo usado.
+      placeholder: "Ex: Chrome 120, Firefox, iPhone iOS 17"
+    validations:
+      required: false
+
+  - type: input
+    id: attachments
+    attributes:
+      label: Prints ou Logs (opcional)
+      description: Se puder, adicione um link para uma imagem ou log.
+      placeholder: "Ex: https://imgur.com/xxxxx"
