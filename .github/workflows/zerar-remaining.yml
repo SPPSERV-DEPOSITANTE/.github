@@ -1,23 +1,38 @@
-# .github/workflows/zerar-remaining-projects-v2.yml
-name: Zerar campo Remaining no Projects v2
+name: Zerar campo Remaining em Projects v2
 
 on:
   schedule:
-    - cron: '*/1 * * * *' # roda a cada 5 minutos
-  workflow_dispatch: # permite executar manualmente também
+    - cron: '*/5 * * * *' # roda a cada 5 minutos
+  workflow_dispatch: # permite execução manual
 
 jobs:
   zerar_remaining:
     runs-on: ubuntu-latest
     steps:
-      - name: Zerar campo Remaining para itens em "Done"
+      - name: Instalar GH CLI + jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install jq -y
+          sudo curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
+
+      - name: Autenticar GH CLI
+        run: gh auth login --with-token <<< "${{ secrets.GH_PAT }}"
+
+      - name: Rodar script para zerar Remaining
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-          PROJECT_NUMBER: 3 # número do projeto (não é ID)
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name || github.repository }}
+          PROJECT_NUMBER: 1 # Altere se seu projeto não for o número 1
           FIELD_NAME: Remaining
-          COLUMN_NAME: Done
+          STATUS_FIELD_NAME: Status
+          DONE_VALUE: Done
         run: |
-          gh api graphql -f query='
+          gh api graphql -F owner="$REPO_OWNER" -F repo="$REPO_NAME" -F projectNumber=$PROJECT_NUMBER -f query='
             query($owner: String!, $repo: String!, $projectNumber: Int!) {
               repository(owner: $owner, name: $repo) {
                 projectV2(number: $projectNumber) {
@@ -41,32 +56,23 @@ jobs:
                       }
                       fieldValues(first: 20) {
                         nodes {
-                          ... on ProjectV2ItemFieldTextValue {
+                          ... on ProjectV2ItemFieldSingleSelectValue {
+                            name
                             field {
                               ... on ProjectV2FieldCommon {
                                 id
                                 name
                               }
                             }
-                            text
                           }
                           ... on ProjectV2ItemFieldNumberValue {
-                            field {
-                              ... on ProjectV2FieldCommon {
-                                id
-                                name
-                              }
-                            }
                             number
-                          }
-                          ... on ProjectV2ItemFieldSingleSelectValue {
                             field {
                               ... on ProjectV2FieldCommon {
                                 id
                                 name
                               }
                             }
-                            name
                           }
                         }
                       }
@@ -74,20 +80,22 @@ jobs:
                   }
                 }
               }
-            }
-          ' -f owner=${{ github.repository_owner }} -f repo=${{ github.event.repository.name }} -f projectNumber=3 > result.json
+            }' > result.json
 
-          project_id=$(jq -r '.data.repository.projectV2.id' result.json)
-          field_id=$(jq -r --arg name "$FIELD_NAME" '.data.repository.projectV2.fields.nodes[] | select(.name == $name) | .id' result.json)
+          PROJECT_ID=$(jq -r '.data.repository.projectV2.id' result.json)
+          REMAINING_FIELD_ID=$(jq -r --arg NAME "$FIELD_NAME" '.data.repository.projectV2.fields.nodes[] | select(.name == $NAME) | .id' result.json)
+          STATUS_FIELD_ID=$(jq -r --arg NAME "$STATUS_FIELD_NAME" '.data.repository.projectV2.fields.nodes[] | select(.name == $NAME) | .id' result.json)
 
           jq -c '.data.repository.projectV2.items.nodes[]' result.json | while read -r item; do
-            item_id=$(echo "$item" | jq -r '.id')
-            title=$(echo "$item" | jq -r '.content.title // empty')
-            issue_number=$(echo "$item" | jq -r '.content.number // empty')
+            ITEM_ID=$(echo "$item" | jq -r '.id')
+            ISSUE_TITLE=$(echo "$item" | jq -r '.content.title // "Sem título"')
+            ISSUE_NUMBER=$(echo "$item" | jq -r '.content.number // "N/A"')
 
-            done_column=$(echo "$item" | jq -r '.fieldValues.nodes[] | select(.name == "Status" or .field.name == "Status") | .name // .text // empty')
-            if [ "$done_column" == "$COLUMN_NAME" ]; then
-              echo "Zerando Remaining para: $title (#$issue_number)"
+            STATUS_VALUE=$(echo "$item" | jq -r --arg STATUS_NAME "$STATUS_FIELD_NAME" '.fieldValues.nodes[] | select(.field.name == $STATUS_NAME) | .name')
+            REMAINING_VALUE=$(echo "$item" | jq -r --arg FIELD_NAME "$FIELD_NAME" '.fieldValues.nodes[] | select(.field.name == $FIELD_NAME) | .number // empty')
+
+            if [[ "$STATUS_VALUE" == "$DONE_VALUE" && "$REMAINING_VALUE" != "0" && "$REMAINING_VALUE" != "" ]]; then
+              echo "Zerando Remaining da issue #$ISSUE_NUMBER ($ISSUE_TITLE)"
               gh api graphql -f query='
                 mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
                   updateProjectV2ItemFieldValue(input: {
@@ -100,7 +108,9 @@ jobs:
                       id
                     }
                   }
-                }
-              ' -f projectId=$project_id -f itemId=$item_id -f fieldId=$field_id > /dev/null
+                }' \
+                -F projectId=$PROJECT_ID \
+                -F itemId=$ITEM_ID \
+                -F fieldId=$REMAINING_FIELD_ID > /dev/null
             fi
           done
