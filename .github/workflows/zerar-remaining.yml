@@ -29,7 +29,7 @@ jobs:
           STATUS_FIELD_NAME: Status
           DONE_VALUE: Done
         run: |
-          TODAY_DATE=$(date +%Y-%m-%d)
+          TODAY_DATE=$(date -u +'%Y-%m-%dT00:00:00Z')
 
           gh api graphql -F owner="$OWNER" -F repo="$REPO" -F projectNumber=$PROJECT_NUMBER -f query='
             query($owner: String!, $repo: String!, $projectNumber: Int!) {
@@ -125,22 +125,22 @@ jobs:
               if [[ "$FINISH_AT" == "" || "$FINISH_AT" == "null" ]]; then
                 echo "📅 Atualizando 'Finish at' para data atual ($TODAY_DATE) em: $TITLE"
                 gh api graphql -f query='
-                  mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $date: DateTime!) {
-                    updateProjectV2ItemFieldValue(input: {
-                      projectId: $projectId,
-                      itemId: $itemId,
-                      fieldId: $fieldId,
-                      value: { date: $date }
-                    }) {
-                      projectV2Item {
-                        id
-                      }
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $date: DateTime!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { date: $date }
+                  }) {
+                    projectV2Item {
+                      id
                     }
-                  }' \
-                  -F projectId=$PROJECT_ID \
-                  -F itemId=$ITEM_ID \
-                  -F fieldId=$FINISH_AT_FIELD_ID \
-                  -F date="${TODAY_DATE}" > /dev/null
+                  }
+                }' \
+                -F projectId=$PROJECT_ID \
+                -F itemId=$ITEM_ID \
+                -F fieldId=$FINISH_AT_FIELD_ID \
+                -F date="${TODAY_DATE}" > /dev/null
               fi
             fi
           done
