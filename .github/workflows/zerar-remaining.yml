@@ -23,7 +23,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name || github.repository }}
-          PROJECT_NUMBER: 1 # ALTERE se seu projeto for outro
+          PROJECT_NUMBER: 3 # ALTERE se seu projeto for outro
           FIELD_NAME: Remaining
           STATUS_FIELD_NAME: Status
           DONE_VALUE: Done
