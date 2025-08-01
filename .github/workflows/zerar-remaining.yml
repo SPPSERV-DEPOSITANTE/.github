@@ -1,26 +1,106 @@
-name: Zerar Remaining ao fechar issue
+# .github/workflows/zerar-remaining-projects-v2.yml
+name: Zerar campo Remaining no Projects v2
 
 on:
-  project_card:
-    types: [moved]
+  schedule:
+    - cron: '*/5 * * * *' # roda a cada 5 minutos
+  workflow_dispatch: # permite executar manualmente também
 
 jobs:
-  zerar:
+  zerar_remaining:
     runs-on: ubuntu-latest
     steps:
-      - name: Zera campo Remaining
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const issueNumber = context.payload.issue.number;
-            const originalBody = context.payload.issue.body;
+      - name: Zerar campo Remaining para itens em "Done"
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          PROJECT_NUMBER: 1 # número do projeto (não é ID)
+          FIELD_NAME: Remaining
+          COLUMN_NAME: Done
+        run: |
+          gh api graphql -f query='
+            query($owner: String!, $repo: String!, $projectNumber: Int!) {
+              repository(owner: $owner, name: $repo) {
+                projectV2(number: $projectNumber) {
+                  id
+                  fields(first: 100) {
+                    nodes {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  items(first: 100) {
+                    nodes {
+                      id
+                      content {
+                        ... on Issue {
+                          number
+                          title
+                        }
+                      }
+                      fieldValues(first: 20) {
+                        nodes {
+                          ... on ProjectV2ItemFieldTextValue {
+                            field {
+                              ... on ProjectV2FieldCommon {
+                                id
+                                name
+                              }
+                            }
+                            text
+                          }
+                          ... on ProjectV2ItemFieldNumberValue {
+                            field {
+                              ... on ProjectV2FieldCommon {
+                                id
+                                name
+                              }
+                            }
+                            number
+                          }
+                          ... on ProjectV2ItemFieldSingleSelectValue {
+                            field {
+                              ... on ProjectV2FieldCommon {
+                                id
+                                name
+                              }
+                            }
+                            name
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ' -f owner=${{ github.repository_owner }} -f repo=${{ github.event.repository.name }} -f projectNumber=$PROJECT_NUMBER > result.json
 
-            const updatedBody = originalBody.replace(/Remaining:\s*\d+/i, "Remaining: 0");
+          project_id=$(jq -r '.data.repository.projectV2.id' result.json)
+          field_id=$(jq -r --arg name "$FIELD_NAME" '.data.repository.projectV2.fields.nodes[] | select(.name == $name) | .id' result.json)
 
-            await github.rest.issues.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              body: updatedBody
-            });
+          jq -c '.data.repository.projectV2.items.nodes[]' result.json | while read -r item; do
+            item_id=$(echo "$item" | jq -r '.id')
+            title=$(echo "$item" | jq -r '.content.title // empty')
+            issue_number=$(echo "$item" | jq -r '.content.number // empty')
+
+            done_column=$(echo "$item" | jq -r '.fieldValues.nodes[] | select(.name == "Status" or .field.name == "Status") | .name // .text // empty')
+            if [ "$done_column" == "$COLUMN_NAME" ]; then
+              echo "Zerando Remaining para: $title (#$issue_number)"
+              gh api graphql -f query='
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { number: 0 }
+                  }) {
+                    projectV2Item {
+                      id
+                    }
+                  }
+                }
+              ' -f projectId=$project_id -f itemId=$item_id -f fieldId=$field_id > /dev/null
+            fi
+          done
