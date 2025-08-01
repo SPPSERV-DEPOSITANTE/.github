@@ -2,7 +2,7 @@ name: Zerar Remaining ao fechar issue
 
 on:
   issues:
-    types: [closed]
+    types: [done]
 
 jobs:
   zerar:
