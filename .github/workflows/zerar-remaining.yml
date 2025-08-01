@@ -1,7 +1,7 @@
 name: Zerar Remaining ao fechar issue
 
 on:
-  issues:
+  project_card:
     types: [moved]
 
 jobs:
