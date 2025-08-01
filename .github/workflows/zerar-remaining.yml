@@ -75,7 +75,7 @@ jobs:
                 }
               }
             }
-          ' -f owner=${{ github.repository_owner }} -f repo=${{ github.event.repository.name }} -f projectNumber=${PROJECT_NUMBER} > result.json
+          ' -f owner=${{ github.repository_owner }} -f repo=${{ github.event.repository.name }} -f projectNumber=3 > result.json
 
           project_id=$(jq -r '.data.repository.projectV2.id' result.json)
           field_id=$(jq -r --arg name "$FIELD_NAME" '.data.repository.projectV2.fields.nodes[] | select(.name == $name) | .id' result.json)
