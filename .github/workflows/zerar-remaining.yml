@@ -2,7 +2,7 @@ name: Task Done - Zerar e Definir Data
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # roda a cada 5 minutos
+    - cron: "*/5 * * * *" # roda a cada 5 minutos
   workflow_dispatch: # permite execução manual
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name || github.repository }}
-          PROJECT_NUMBER: 3   # <-- ALTERE para o número do seu projeto
+          PROJECT_NUMBER: 3 # <-- ALTERE para o número do seu projeto
           FIELD_NAME_REMAINING: Remaining
           FIELD_NAME_FINISH_AT: "Finish at"
           STATUS_FIELD_NAME: Status
@@ -103,7 +103,7 @@ jobs:
 
             if [[ "$STATUS" == "$DONE_VALUE" ]]; then
               if [[ "$REMAINING" != "0" && "$REMAINING" != "" ]]; then
-                echo "🛠️ ZERANDO 'Remaining' para: $TITLE"
+                echo "🛠️ ZERANDO 'Remaining' para: $TITLE - FINISH_AT: $FINISH_AT"
                 gh api graphql -f query='
                   mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
                     updateProjectV2ItemFieldValue(input: {
