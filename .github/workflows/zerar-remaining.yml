@@ -10,15 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Instalar GH CLI e jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq gh
-
       - name: Autenticar no GitHub CLI
         run: gh auth login --with-token <<< "${{ secrets.GH_PAT }}"
 
-      - name: Zerar Remaining e atualizar Finish at para cards Done
+      - name: Atualizar campos do projeto
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           OWNER: ${{ github.repository_owner }}
