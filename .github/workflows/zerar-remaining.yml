@@ -101,6 +101,11 @@ jobs:
             REMAINING=$(echo "$item" | jq -r --arg FN "$FIELD_NAME_REMAINING" '.fieldValues.nodes[] | select(.field.name == $FN) | .number // empty')
             FINISH_AT=$(echo "$item" | jq -r --arg FN "$FIELD_NAME_FINISH_AT" '.fieldValues.nodes[] | select(.field.name == $FN) | .date // empty')
 
+
+            echo "tempo - FINISH_AT: $FINISH_AT"
+
+
+
             if [[ "$STATUS" == "$DONE_VALUE" ]]; then
               if [[ "$REMAINING" != "0" && "$REMAINING" != "" ]]; then
                 echo "🛠️ ZERANDO 'Remaining' para: $TITLE - FINISH_AT: $FINISH_AT"
