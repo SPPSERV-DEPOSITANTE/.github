@@ -140,7 +140,7 @@ jobs:
                   -F projectId=$PROJECT_ID \
                   -F itemId=$ITEM_ID \
                   -F fieldId=$FINISH_AT_FIELD_ID \
-                  -F date="${TODAY_DATE}T00:00:00Z" > /dev/null
+                  -F date="${TODAY_DATE}" > /dev/null
               fi
             fi
           done
