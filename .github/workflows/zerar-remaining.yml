@@ -1,12 +1,12 @@
-name: Zerar Remaining ao mover para Done (Projects v2)
+name: Zerar Remaining e atualizar Finish at no Projects v2
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # a cada 5 minutos
-  workflow_dispatch: # permite executar manualmente
+    - cron: '*/5 * * * *' # roda a cada 5 minutos
+  workflow_dispatch: # permite execução manual
 
 jobs:
-  zerar_remaining:
+  atualizar_campos:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,17 +18,19 @@ jobs:
       - name: Autenticar no GitHub CLI
         run: gh auth login --with-token <<< "${{ secrets.GH_PAT }}"
 
-      - name: Zerar campo Remaining para cards em Done
+      - name: Zerar Remaining e atualizar Finish at para cards Done
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name || github.repository }}
-          PROJECT_NUMBER: 3 # ALTERE se seu projeto for outro
-          FIELD_NAME: Remaining
+          PROJECT_NUMBER: 3   # <-- ALTERE para o número do seu projeto
+          FIELD_NAME_REMAINING: Remaining
+          FIELD_NAME_FINISH_AT: "Finish at"
           STATUS_FIELD_NAME: Status
           DONE_VALUE: Done
         run: |
-          echo "🔍 Buscando itens do projeto..."
+          TODAY_DATE=$(date +%Y-%m-%d)
+
           gh api graphql -F owner="$OWNER" -F repo="$REPO" -F projectNumber=$PROJECT_NUMBER -f query='
             query($owner: String!, $repo: String!, $projectNumber: Int!) {
               repository(owner: $owner, name: $repo) {
@@ -71,6 +73,15 @@ jobs:
                               }
                             }
                           }
+                          ... on ProjectV2ItemFieldDateValue {
+                            date
+                            field {
+                              ... on ProjectV2FieldCommon {
+                                id
+                                name
+                              }
+                            }
+                          }
                         }
                       }
                     }
@@ -80,31 +91,56 @@ jobs:
             }' > result.json
 
           PROJECT_ID=$(jq -r '.data.repository.projectV2.id' result.json)
-          REMAINING_FIELD_ID=$(jq -r --arg FN "$FIELD_NAME" '.data.repository.projectV2.fields.nodes[] | select(.name == $FN) | .id' result.json)
+          REMAINING_FIELD_ID=$(jq -r --arg FN "$FIELD_NAME_REMAINING" '.data.repository.projectV2.fields.nodes[] | select(.name == $FN) | .id' result.json)
+          FINISH_AT_FIELD_ID=$(jq -r --arg FN "$FIELD_NAME_FINISH_AT" '.data.repository.projectV2.fields.nodes[] | select(.name == $FN) | .id' result.json)
 
           jq -c '.data.repository.projectV2.items.nodes[]' result.json | while read -r item; do
             ITEM_ID=$(echo "$item" | jq -r '.id')
             TITLE=$(echo "$item" | jq -r '.content.title // "Sem título"')
             STATUS=$(echo "$item" | jq -r --arg SF "$STATUS_FIELD_NAME" '.fieldValues.nodes[] | select(.field.name == $SF) | .name')
-            REMAINING=$(echo "$item" | jq -r --arg FN "$FIELD_NAME" '.fieldValues.nodes[] | select(.field.name == $FN) | .number // empty')
+            REMAINING=$(echo "$item" | jq -r --arg FN "$FIELD_NAME_REMAINING" '.fieldValues.nodes[] | select(.field.name == $FN) | .number // empty')
+            FINISH_AT=$(echo "$item" | jq -r --arg FN "$FIELD_NAME_FINISH_AT" '.fieldValues.nodes[] | select(.field.name == $FN) | .date // empty')
 
-            if [[ "$STATUS" == "$DONE_VALUE" && "$REMAINING" != "0" && "$REMAINING" != "" ]]; then
-              echo "🛠️ ZERANDO 'Remaining' para: $TITLE"
-              gh api graphql -f query='
-                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
-                  updateProjectV2ItemFieldValue(input: {
-                    projectId: $projectId,
-                    itemId: $itemId,
-                    fieldId: $fieldId,
-                    value: { number: 0 }
-                  }) {
-                    projectV2Item {
-                      id
+            if [[ "$STATUS" == "$DONE_VALUE" ]]; then
+              if [[ "$REMAINING" != "0" && "$REMAINING" != "" ]]; then
+                echo "🛠️ ZERANDO 'Remaining' para: $TITLE"
+                gh api graphql -f query='
+                  mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
+                    updateProjectV2ItemFieldValue(input: {
+                      projectId: $projectId,
+                      itemId: $itemId,
+                      fieldId: $fieldId,
+                      value: { number: 0 }
+                    }) {
+                      projectV2Item {
+                        id
+                      }
                     }
-                  }
-                }' \
-              -F projectId=$PROJECT_ID \
-              -F itemId=$ITEM_ID \
-              -F fieldId=$REMAINING_FIELD_ID > /dev/null
+                  }' \
+                  -F projectId=$PROJECT_ID \
+                  -F itemId=$ITEM_ID \
+                  -F fieldId=$REMAINING_FIELD_ID > /dev/null
+              fi
+
+              if [[ "$FINISH_AT" == "" || "$FINISH_AT" == "null" ]]; then
+                echo "📅 Atualizando 'Finish at' para data atual ($TODAY_DATE) em: $TITLE"
+                gh api graphql -f query='
+                  mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $date: DateTime!) {
+                    updateProjectV2ItemFieldValue(input: {
+                      projectId: $projectId,
+                      itemId: $itemId,
+                      fieldId: $fieldId,
+                      value: { date: $date }
+                    }) {
+                      projectV2Item {
+                        id
+                      }
+                    }
+                  }' \
+                  -F projectId=$PROJECT_ID \
+                  -F itemId=$ITEM_ID \
+                  -F fieldId=$FINISH_AT_FIELD_ID \
+                  -F date="${TODAY_DATE}T00:00:00Z" > /dev/null
+              fi
             fi
           done
