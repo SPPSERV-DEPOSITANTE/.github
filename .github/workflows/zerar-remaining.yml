@@ -1,4 +1,4 @@
-name: Zerar Remaining e atualizar Finish at no Projects v2
+name: Task Done - Zerar e Definir Data
 
 on:
   schedule:
